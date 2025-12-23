@@ -1,0 +1,6 @@
+.env
+*.png
+**/*.png
+.github/copilot-instructions.md
+lec_streamlit/lec_streamlit.py
+.gitignore
