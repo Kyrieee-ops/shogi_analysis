@@ -1,7 +1,5 @@
-import os 
 import pandas as pd
 import streamlit as st
-# import plotly.express as px
 
 st.sidebar.header("将棋ウォーズ 分析フィルター")
 
@@ -18,6 +16,7 @@ if uploaded_file is not None:
     # 何も選ばれていない時は全選択状態にするための準備
     all_turns = df["先後"].unique()
     all_styles = df["対象の戦法"].unique()
+    all_times = df["持ち時間"].unique()
 
     # 3. サイドバーでフィルタリング
     selected_turn = st.sidebar.multiselect(
@@ -28,11 +27,15 @@ if uploaded_file is not None:
         "戦法を選択", 
         options=all_styles, default=all_styles
     )
-    
+    selected_time = st.sidebar.multiselect(
+        "持ち時間を選択",
+        options=all_times, default=all_times
+    )
     # 4. データ抽出 (フィルタリング)
     filterd_df = df[
         (df["先後"].isin(selected_turn)) &
-        (df["対象の戦法"].isin(selected_style))
+        (df["対象の戦法"].isin(selected_style)) &
+        (df["持ち時間"].isin(selected_time))
     ]
 
 
@@ -42,8 +45,16 @@ if uploaded_file is not None:
         win_count = len(filterd_df[filterd_df["勝敗"] == "勝ち"])
         lose_count = len(filterd_df[filterd_df["勝敗"] == "負け"])
         total = win_count + lose_count
-        win_rate = (win_count / total) * 100 if total > 0 else 0
 
+        if total > 0:
+            # totalが0より大きい（データがある）場合
+            win_rate = (win_count / total) * 100
+        else:
+            # totalが0以下（データが0件）の場合
+            win_rate = 0
+
+        # カラムを3分割してメトリクス表示
+        # col1: 左側の枠, col2: 中央の枠, col3: 右側の枠
         col1, col2, col3 = st.columns(3)
         col1.metric("対局数", f"{total} 局")
         col2.metric("勝率", f"{win_rate:.1f} %")
@@ -58,7 +69,10 @@ if uploaded_file is not None:
     # --- 3. 戦型別の勝率（集計テーブル） ---
     st.subheader("戦型別の詳細成績")
     if not filterd_df.empty:
-        # 戦型1と勝敗でクロス集計
+        # 対象と勝敗でクロス集計
+        # groupby(['対象の戦法', '勝敗'])で対象の戦法と紹介を2つノセットにして、データをグループ分けする
+        # .size()で各グループが何行あるかを数える(四間飛車で勝ったのは3回、負けたのは1回といった算出)
+        # .unstack()で縦に並んでいるデータを横に広げる処理
         summary = filterd_df.groupby(['対象の戦法', '勝敗']).size().unstack(fill_value=0)
         
         # 「勝ち」や「負け」の列が存在しない場合の補完
