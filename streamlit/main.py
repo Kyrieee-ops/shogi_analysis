@@ -1,6 +1,25 @@
 import pandas as pd
 import streamlit as st
 
+# --- 共通ユーティリティ: 勝敗メトリクス計算と表示 ---
+def compute_metrics(df, result_col='勝敗'):
+    if df is None or df.empty:
+        return 0, 0, 0, 0.0
+    if result_col in df.columns:
+        win = len(df[df[result_col] == "勝ち"])
+        lose = len(df[df[result_col] == "負け"])
+    else:
+        win, lose = 0, 0
+    total = win + lose
+    win_rate = (win / total * 100) if total > 0 else 0.0
+    return win, lose, total, win_rate
+
+def show_metrics(win, lose, total, win_rate):
+    c1, c2, c3 = st.columns(3)
+    c1.metric("対局数", f"{total} 局")
+    c2.metric("勝率", f"{win_rate:.1f} %")
+    c3.metric("勝ち/負け", f"{win}勝 / {lose}敗")
+
 st.sidebar.header("将棋ウォーズ 分析フィルター")
 
 # 1. ファイルアップローダーをサイドバーに配置
@@ -32,7 +51,7 @@ if uploaded_file is not None:
         options=all_times, default=all_times
     )
 
-    # --- 追加: 直近N局を選択するコントロール ---
+    # --- 直近N局を選択するコントロール ---
     recent_options = [10, 20, 30, 40, 50]
     recent_n = st.sidebar.select_slider("直近何局を表示", options=recent_options, value=10)
 
@@ -47,24 +66,10 @@ if uploaded_file is not None:
 
     # --- 1. 基本統計の表示 ---
     st.subheader("対局サマリー")
+    
     if not filterd_df.empty:
-        win_count = len(filterd_df[filterd_df["勝敗"] == "勝ち"])
-        lose_count = len(filterd_df[filterd_df["勝敗"] == "負け"])
-        total = win_count + lose_count
-
-        if total > 0:
-            # totalが0より大きい（データがある）場合
-            win_rate = (win_count / total) * 100
-        else:
-            # totalが0以下（データが0件）の場合
-            win_rate = 0
-
-        # カラムを3分割してメトリクス表示
-        # col1: 左側の枠, col2: 中央の枠, col3: 右側の枠
-        col1, col2, col3 = st.columns(3)
-        col1.metric("対局数", f"{total} 局")
-        col2.metric("勝率", f"{win_rate:.1f} %")
-        col3.metric("勝ち/負け", f"{win_count}勝 / {lose_count}敗")
+        win_count, lose_count, total, win_rate = compute_metrics(filterd_df)
+        show_metrics(win_count, lose_count, total, win_rate)
 
         st.divider() # 区切り線
 
@@ -78,16 +83,23 @@ if uploaded_file is not None:
         # recent_n局を抽出する。日付列があればそれでソートして最新順を取得。
         if not filterd_df.empty:
             date_col = None
-            for col in filterd_df.columns:
-                if any(k in col for k in ["日時", "日付", "対局日時", "開始", "date", "time", "Time", "timestamp"]):
-                    try:
-                        parsed = pd.to_datetime(filterd_df[col], errors='coerce')
-                        if not parsed.isna().all():
-                            date_col = col
-                            filterd_df = filterd_df.assign(_parsed_date=parsed)
-                            break
-                    except Exception:
-                        continue
+
+            # 優先する単一の列名を使う（ユーザー指定）
+            preferred_name = "対局日時"
+            found = None
+            if preferred_name and preferred_name in filterd_df.columns:
+                found = preferred_name
+                try:
+                    parsed = pd.to_datetime(filterd_df[found], errors='coerce')
+                    if not parsed.isna().all():
+                        date_col = found
+                        filterd_df = filterd_df.assign(_parsed_date=parsed)
+                    else:
+                        # パースできなければ found をリセットしてフォールバックへ
+                        found = None
+                except Exception:
+                    found = None
+
 
             if date_col:
                 recent_df = filterd_df.sort_values('_parsed_date', ascending=False).head(recent_n)
@@ -95,16 +107,9 @@ if uploaded_file is not None:
                 # 日付列が見つからない場合は、データフレームの先頭を最新と仮定して取得
                 recent_df = filterd_df.head(recent_n)
 
-            # 直近N局の簡易統計
-            rec_win = len(recent_df[recent_df["勝敗"] == "勝ち"]) if "勝敗" in recent_df.columns else 0
-            rec_lose = len(recent_df[recent_df["勝敗"] == "負け"]) if "勝敗" in recent_df.columns else 0
-            rec_total = rec_win + rec_lose
-            rec_win_rate = (rec_win / rec_total * 100) if rec_total > 0 else 0
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("対局数", f"{rec_total} 局")
-            c2.metric("勝率", f"{rec_win_rate:.1f} %")
-            c3.metric("勝ち/負け", f"{rec_win}勝 / {rec_lose}敗")
+            # 直近N局の簡易統計（共通関数を利用）
+            rec_win, rec_lose, rec_total, rec_win_rate = compute_metrics(recent_df)
+            show_metrics(rec_win, rec_lose, rec_total, rec_win_rate)
 
             st.dataframe(recent_df)
         else:
