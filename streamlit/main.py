@@ -11,7 +11,10 @@ def compute_metrics(df, result_col='勝敗'):
     else:
         win, lose = 0, 0
     total = win + lose
-    win_rate = (win / total * 100) if total > 0 else 0.0
+    if total > 0:
+        win_rate = win / total * 100
+    else:
+        win_rate = 0.0
     return win, lose, total, win_rate
 
 def show_metrics(win, lose, total, win_rate):
