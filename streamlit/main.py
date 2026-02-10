@@ -23,6 +23,7 @@ def show_metrics(win, lose, total, win_rate):
     c2.metric("勝率", f"{win_rate:.1f} %")
     c3.metric("勝ち/負け", f"{win}勝 / {lose}敗")
 
+
 st.sidebar.header("将棋ウォーズ 分析フィルター")
 
 # 1. ファイルアップローダーをサイドバーに配置
@@ -39,6 +40,8 @@ if uploaded_file is not None:
     all_turns = df["先後"].unique()
     all_styles = df["対象の戦法"].unique()
     all_times = df["持ち時間"].unique()
+    all_rank = df["相手の段位"].unique()
+    all_modes = df["対局モード"].unique()
 
     # 3. サイドバーでフィルタリング
     selected_turn = st.sidebar.multiselect(
@@ -53,6 +56,15 @@ if uploaded_file is not None:
         "持ち時間を選択",
         options=all_times, default=all_times
     )
+    selected_rank = st.sidebar.multiselect(
+        "相手の段位を選択",
+        options=all_rank, default=all_rank
+    )
+    selected_modes = st.sidebar.multiselect(
+        "対局モード", 
+        options=all_modes, default=all_modes
+    )
+
 
     # --- 直近N局を選択するコントロール ---
     recent_options = [10, 20, 30, 40, 50]
@@ -63,7 +75,9 @@ if uploaded_file is not None:
     filterd_df = df[
         (df["先後"].isin(selected_turn)) &
         (df["対象の戦法"].isin(selected_style)) &
-        (df["持ち時間"].isin(selected_time)) 
+        (df["持ち時間"].isin(selected_time)) &
+        (df["相手の段位"].isin(selected_rank)) &
+        (df["対局モード"].isin(selected_modes))
     ]
 
 
